@@ -54,3 +54,5 @@ desktop.ini
 
 # ── Docker volumes ───────────────────────────────────────────
 postgres_data/
+
+.env.local

@@ -1,3 +1,5 @@
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -12,8 +14,16 @@ app = FastAPI(
 # Configure CORS
 origins = [
     "http://localhost:3000",
-    # Add production frontend URL here when deploying
+    "http://127.0.0.1:3000",
 ]
+
+frontend_url = os.getenv("FRONTEND_URL")
+if frontend_url:
+    # Support comma-separated URLs or single URL
+    for url in frontend_url.split(","):
+        cleaned_url = url.strip()
+        if cleaned_url and cleaned_url not in origins:
+            origins.append(cleaned_url)
 
 app.add_middleware(
     CORSMiddleware,

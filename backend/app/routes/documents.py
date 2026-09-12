@@ -20,18 +20,13 @@ def get_templates() -> list[dict[str, str]]:
     return list_available_templates()
 
 
-
 @router.post("/generate", response_model=GenerateResponse)
 def generate(request: GenerateRequest) -> GenerateResponse:
     """
     Accept validated form data and return the generated document draft.
     """
     try:
-        title, content = generate_document(
-            request.document_type,
-            request.party_name,
-            request.details,
-        )
+        title, content = generate_document(request)
     except KeyError:
         raise HTTPException(status_code=400, detail="Unsupported document type.")
 
@@ -50,11 +45,7 @@ def export_document(request: GenerateRequest) -> PlainTextResponse:
     The client should POST the same payload used for /generate.
     """
     try:
-        title, content = generate_document(
-            request.document_type,
-            request.party_name,
-            request.details,
-        )
+        title, content = generate_document(request)
     except KeyError:
         raise HTTPException(status_code=400, detail="Unsupported document type.")
 

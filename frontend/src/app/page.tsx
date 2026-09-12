@@ -19,11 +19,7 @@ interface GenerateResponse {
   disclaimer: string;
 }
 
-interface FormErrors {
-  document_type?: string;
-  party_name?: string;
-  details?: string;
-}
+type FormErrors = Record<string, string>;
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -47,34 +43,52 @@ const DEFAULT_TEMPLATES: TemplateItem[] = [
   },
 ];
 
-// ── Validation ───────────────────────────────────────────────────────────────
-
-function validateForm(
-  documentType: string,
-  partyName: string,
-  details: string
-): FormErrors {
-  const errors: FormErrors = {};
-  if (!documentType) errors.document_type = "Please select a document type.";
-  if (!partyName.trim()) errors.party_name = "Party name is required.";
-  if (!details.trim() || details.trim().length < 10)
-    errors.details = "Please enter at least 10 characters of details.";
-  return errors;
-}
-
 // ── Component ────────────────────────────────────────────────────────────────
 
 export default function Home() {
-  // Templates list from backend (PL-3 / PL-4 / PL-8 integration)
   const [templates, setTemplates] = useState<TemplateItem[]>(DEFAULT_TEMPLATES);
-
-  // Form state
   const [documentType, setDocumentType] = useState<DocumentType | "">("");
-  const [partyName, setPartyName] = useState("");
-  const [details, setDetails] = useState("");
-  const [fieldErrors, setFieldErrors] = useState<FormErrors>({});
 
-  // API state
+  // Shared / General
+  const [date, setDate] = useState("");
+  const [governingLaw, setGoverningLaw] = useState("");
+
+  // Demand Letter fields
+  const [senderName, setSenderName] = useState("");
+  const [senderAddress, setSenderAddress] = useState("");
+  const [senderContact, setSenderContact] = useState("");
+  const [recipientName, setRecipientName] = useState("");
+  const [recipientAddress, setRecipientAddress] = useState("");
+  const [subject, setSubject] = useState("");
+  const [facts, setFacts] = useState("");
+  const [demand, setDemand] = useState("");
+  const [deadline, setDeadline] = useState("");
+  const [senderTitle, setSenderTitle] = useState("");
+  const [signatureName, setSignatureName] = useState("");
+
+  // NDA fields
+  const [disclosingPartyName, setDisclosingPartyName] = useState("");
+  const [disclosingPartyAddress, setDisclosingPartyAddress] = useState("");
+  const [receivingPartyName, setReceivingPartyName] = useState("");
+  const [receivingPartyAddress, setReceivingPartyAddress] = useState("");
+  const [purpose, setPurpose] = useState("");
+  const [confidentialInfoDesc, setConfidentialInfoDesc] = useState("");
+  const [confidentialityPeriod, setConfidentialityPeriod] = useState("");
+
+  // Service Agreement fields
+  const [serviceProviderName, setServiceProviderName] = useState("");
+  const [serviceProviderAddress, setServiceProviderAddress] = useState("");
+  const [clientName, setClientName] = useState("");
+  const [clientAddress, setClientAddress] = useState("");
+  const [servicesDescription, setServicesDescription] = useState("");
+  const [paymentTerms, setPaymentTerms] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [duration, setDuration] = useState("");
+  const [terminationNotice, setTerminationNotice] = useState("");
+  const [additionalTerms, setAdditionalTerms] = useState("");
+
+  // UI & API state
+  const [fieldErrors, setFieldErrors] = useState<FormErrors>({});
   const [isGenerating, setIsGenerating] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [apiError, setApiError] = useState("");
@@ -89,10 +103,77 @@ export default function Home() {
         }
       })
       .catch(() => {
-        // Fallback to DEFAULT_TEMPLATES is maintained
+        // Fallback to DEFAULT_TEMPLATES
       });
   }, []);
 
+  // ── Validation ─────────────────────────────────────────────────────────────
+
+  const validateForm = (): FormErrors => {
+    const errors: FormErrors = {};
+    if (!documentType) {
+      errors.document_type = "Please select a document type.";
+      return errors;
+    }
+
+    if (documentType === "demand_letter") {
+      if (!senderName.trim()) errors.sender_name = "Sender / Your Name is required.";
+      if (!recipientName.trim()) errors.recipient_name = "Recipient Name is required.";
+      if (!demand.trim()) errors.demand = "Demand details are required.";
+    } else if (documentType === "nda") {
+      if (!disclosingPartyName.trim()) errors.disclosing_party_name = "Disclosing Party Name is required.";
+      if (!receivingPartyName.trim()) errors.receiving_party_name = "Receiving Party Name is required.";
+    } else if (documentType === "service_agreement") {
+      if (!serviceProviderName.trim()) errors.service_provider_name = "Service Provider Name is required.";
+      if (!clientName.trim()) errors.client_name = "Client Name is required.";
+      if (!servicesDescription.trim()) errors.services_description = "Services Description is required.";
+    }
+
+    return errors;
+  };
+
+  const buildPayload = (): Record<string, string> => {
+    const payload: Record<string, string> = { document_type: documentType };
+
+    if (documentType === "demand_letter") {
+      if (senderName.trim()) payload.sender_name = senderName.trim();
+      if (senderAddress.trim()) payload.sender_address = senderAddress.trim();
+      if (senderContact.trim()) payload.sender_contact = senderContact.trim();
+      if (recipientName.trim()) payload.recipient_name = recipientName.trim();
+      if (recipientAddress.trim()) payload.recipient_address = recipientAddress.trim();
+      if (date.trim()) payload.date = date.trim();
+      if (subject.trim()) payload.subject = subject.trim();
+      if (facts.trim()) payload.facts = facts.trim();
+      if (demand.trim()) payload.demand = demand.trim();
+      if (deadline.trim()) payload.deadline = deadline.trim();
+      if (senderTitle.trim()) payload.sender_title = senderTitle.trim();
+      if (signatureName.trim()) payload.signature_name = signatureName.trim();
+    } else if (documentType === "nda") {
+      if (disclosingPartyName.trim()) payload.disclosing_party_name = disclosingPartyName.trim();
+      if (disclosingPartyAddress.trim()) payload.disclosing_party_address = disclosingPartyAddress.trim();
+      if (receivingPartyName.trim()) payload.receiving_party_name = receivingPartyName.trim();
+      if (receivingPartyAddress.trim()) payload.receiving_party_address = receivingPartyAddress.trim();
+      if (purpose.trim()) payload.purpose = purpose.trim();
+      if (confidentialInfoDesc.trim()) payload.confidential_info_desc = confidentialInfoDesc.trim();
+      if (date.trim()) payload.date = date.trim();
+      if (confidentialityPeriod.trim()) payload.confidentiality_period = confidentialityPeriod.trim();
+      if (governingLaw.trim()) payload.governing_law = governingLaw.trim();
+    } else if (documentType === "service_agreement") {
+      if (serviceProviderName.trim()) payload.service_provider_name = serviceProviderName.trim();
+      if (serviceProviderAddress.trim()) payload.service_provider_address = serviceProviderAddress.trim();
+      if (clientName.trim()) payload.client_name = clientName.trim();
+      if (clientAddress.trim()) payload.client_address = clientAddress.trim();
+      if (servicesDescription.trim()) payload.services_description = servicesDescription.trim();
+      if (paymentTerms.trim()) payload.payment_terms = paymentTerms.trim();
+      if (startDate.trim()) payload.start_date = startDate.trim();
+      if (duration.trim()) payload.duration = duration.trim();
+      if (terminationNotice.trim()) payload.termination_notice = terminationNotice.trim();
+      if (governingLaw.trim()) payload.governing_law = governingLaw.trim();
+      if (additionalTerms.trim()) payload.additional_terms = additionalTerms.trim();
+    }
+
+    return payload;
+  };
 
   // ── Handlers ───────────────────────────────────────────────────────────────
 
@@ -100,8 +181,7 @@ export default function Home() {
     e.preventDefault();
     setApiError("");
 
-    // Frontend validation (PL-9)
-    const errors = validateForm(documentType, partyName, details);
+    const errors = validateForm();
     setFieldErrors(errors);
     if (Object.keys(errors).length > 0) return;
 
@@ -110,11 +190,7 @@ export default function Home() {
       const res = await fetch(`${API_BASE}/documents/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          document_type: documentType,
-          party_name: partyName.trim(),
-          details: details.trim(),
-        }),
+        body: JSON.stringify(buildPayload()),
       });
 
       if (!res.ok) {
@@ -146,11 +222,7 @@ export default function Home() {
       const res = await fetch(`${API_BASE}/documents/export`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          document_type: documentType,
-          party_name: partyName.trim(),
-          details: details.trim(),
-        }),
+        body: JSON.stringify(buildPayload()),
       });
 
       if (!res.ok) {
@@ -179,11 +251,47 @@ export default function Home() {
     setApiError("");
     setFieldErrors({});
     setDocumentType("");
-    setPartyName("");
-    setDetails("");
+    
+    // Clear all fields
+    setDate("");
+    setGoverningLaw("");
+    setSenderName("");
+    setSenderAddress("");
+    setSenderContact("");
+    setRecipientName("");
+    setRecipientAddress("");
+    setSubject("");
+    setFacts("");
+    setDemand("");
+    setDeadline("");
+    setSenderTitle("");
+    setSignatureName("");
+
+    setDisclosingPartyName("");
+    setDisclosingPartyAddress("");
+    setReceivingPartyName("");
+    setReceivingPartyAddress("");
+    setPurpose("");
+    setConfidentialInfoDesc("");
+    setConfidentialityPeriod("");
+
+    setServiceProviderName("");
+    setServiceProviderAddress("");
+    setClientName("");
+    setClientAddress("");
+    setServicesDescription("");
+    setPaymentTerms("");
+    setStartDate("");
+    setDuration("");
+    setTerminationNotice("");
+    setAdditionalTerms("");
   };
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  // Helper input styling
+  const inputClass = (errorKey?: string) =>
+    `w-full bg-slate-800/60 border rounded-xl px-4 py-2.5 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${
+      errorKey && fieldErrors[errorKey] ? "border-red-500" : "border-slate-600"
+    }`;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-950 via-purple-950 to-slate-900 font-sans">
@@ -205,13 +313,12 @@ export default function Home() {
               Pre-Legal Document Generator
             </h1>
             <p className="text-slate-400 text-sm">
-              Select a template, provide details, and download your draft.
+              Select a template, fill in the details, and download your draft.
             </p>
           </div>
 
           {/* ── Form Card ── */}
           <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl p-8">
-            {/* Global API Error */}
             {apiError && (
               <div
                 id="api-error"
@@ -236,13 +343,13 @@ export default function Home() {
             )}
 
             <form onSubmit={handleGenerate} className="space-y-5" noValidate>
-              {/* Document Type */}
+              {/* Document Type Selector */}
               <div>
                 <label
                   htmlFor="document-type"
                   className="block text-sm font-medium text-slate-200 mb-1.5"
                 >
-                  Document Type <span className="text-pink-400">*</span>
+                  Select Document Type <span className="text-pink-400">*</span>
                 </label>
                 <div className="relative">
                   <select
@@ -250,20 +357,14 @@ export default function Home() {
                     value={documentType}
                     onChange={(e) => {
                       setDocumentType(e.target.value as DocumentType);
-                      setFieldErrors((prev) => ({
-                        ...prev,
-                        document_type: undefined,
-                      }));
+                      setFieldErrors({});
                     }}
-                    className={`w-full bg-slate-800/60 border rounded-xl px-4 py-3 text-slate-100 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all appearance-none ${fieldErrors.document_type ? "border-red-500" : "border-slate-600"}`}
-                    aria-describedby={
-                      fieldErrors.document_type
-                        ? "document-type-error"
-                        : undefined
-                    }
+                    className={`w-full bg-slate-800/60 border rounded-xl px-4 py-3 text-slate-100 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all appearance-none ${
+                      fieldErrors.document_type ? "border-red-500" : "border-slate-600"
+                    }`}
                   >
                     <option value="" disabled>
-                      Select a document type…
+                      Choose a template…
                     </option>
                     {templates.map((tmpl) => (
                       <option key={tmpl.document_type} value={tmpl.document_type}>
@@ -288,89 +389,556 @@ export default function Home() {
                   </div>
                 </div>
                 {fieldErrors.document_type && (
-                  <p
-                    id="document-type-error"
-                    className="mt-1 text-xs text-red-400"
-                  >
+                  <p className="mt-1 text-xs text-red-400">
                     {fieldErrors.document_type}
                   </p>
                 )}
               </div>
 
-              {/* Party Name */}
-              <div>
-                <label
-                  htmlFor="party-name"
-                  className="block text-sm font-medium text-slate-200 mb-1.5"
-                >
-                  Party / Company Name <span className="text-pink-400">*</span>
-                </label>
-                <input
-                  id="party-name"
-                  type="text"
-                  value={partyName}
-                  onChange={(e) => {
-                    setPartyName(e.target.value);
-                    setFieldErrors((prev) => ({
-                      ...prev,
-                      party_name: undefined,
-                    }));
-                  }}
-                  className={`w-full bg-slate-800/60 border rounded-xl px-4 py-3 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${fieldErrors.party_name ? "border-red-500" : "border-slate-600"}`}
-                  placeholder="e.g., Acme Corp"
-                  aria-describedby={
-                    fieldErrors.party_name ? "party-name-error" : undefined
-                  }
-                />
-                {fieldErrors.party_name && (
-                  <p
-                    id="party-name-error"
-                    className="mt-1 text-xs text-red-400"
-                  >
-                    {fieldErrors.party_name}
-                  </p>
-                )}
-              </div>
+              {/* Dynamic Template-Specific Fields */}
 
-              {/* Details */}
-              <div>
-                <label
-                  htmlFor="details"
-                  className="block text-sm font-medium text-slate-200 mb-1.5"
-                >
-                  Key Details / Requirements{" "}
-                  <span className="text-pink-400">*</span>
-                </label>
-                <textarea
-                  id="details"
-                  value={details}
-                  onChange={(e) => {
-                    setDetails(e.target.value);
-                    setFieldErrors((prev) => ({
-                      ...prev,
-                      details: undefined,
-                    }));
-                  }}
-                  rows={5}
-                  className={`w-full bg-slate-800/60 border rounded-xl px-4 py-3 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all resize-none ${fieldErrors.details ? "border-red-500" : "border-slate-600"}`}
-                  placeholder="Provide context, terms, parties involved, or specific clauses required…"
-                  aria-describedby={
-                    fieldErrors.details ? "details-error" : undefined
-                  }
-                />
-                {fieldErrors.details && (
-                  <p id="details-error" className="mt-1 text-xs text-red-400">
-                    {fieldErrors.details}
-                  </p>
-                )}
-              </div>
+              {/* DEMAND LETTER FIELDS */}
+              {documentType === "demand_letter" && (
+                <div className="space-y-4 pt-2">
+                  <div className="border-b border-slate-700/60 pb-2">
+                    <h2 className="text-sm font-semibold text-purple-300">
+                      Demand Letter Details
+                    </h2>
+                  </div>
 
-              {/* Submit */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-slate-300 mb-1">
+                        Sender / Your Name <span className="text-pink-400">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={senderName}
+                        onChange={(e) => setSenderName(e.target.value)}
+                        className={inputClass("sender_name")}
+                        placeholder="e.g., Jane Doe"
+                      />
+                      {fieldErrors.sender_name && (
+                        <p className="mt-1 text-xs text-red-400">{fieldErrors.sender_name}</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-slate-300 mb-1">
+                        Recipient Name <span className="text-pink-400">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={recipientName}
+                        onChange={(e) => setRecipientName(e.target.value)}
+                        className={inputClass("recipient_name")}
+                        placeholder="e.g., Acme Corp / John Smith"
+                      />
+                      {fieldErrors.recipient_name && (
+                        <p className="mt-1 text-xs text-red-400">{fieldErrors.recipient_name}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-slate-300 mb-1">
+                      Demand / What You Want <span className="text-pink-400">*</span>
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={demand}
+                      onChange={(e) => setDemand(e.target.value)}
+                      className={inputClass("demand")}
+                      placeholder="e.g., Full payment of $2,500 owed under Invoice #1042."
+                    />
+                    {fieldErrors.demand && (
+                      <p className="mt-1 text-xs text-red-400">{fieldErrors.demand}</p>
+                    )}
+                  </div>
+
+                  {/* Optional Demand Letter Fields */}
+                  <div className="border-t border-slate-700/60 pt-3 space-y-4">
+                    <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                      Optional Fields
+                    </span>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium text-slate-300 mb-1">
+                          Sender Address <span className="text-slate-400">(Optional)</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={senderAddress}
+                          onChange={(e) => setSenderAddress(e.target.value)}
+                          className={inputClass()}
+                          placeholder="e.g., 123 Main St, New York, NY"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium text-slate-300 mb-1">
+                          Recipient Address <span className="text-slate-400">(Optional)</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={recipientAddress}
+                          onChange={(e) => setRecipientAddress(e.target.value)}
+                          className={inputClass()}
+                          placeholder="e.g., 456 Business Ave, Austin, TX"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium text-slate-300 mb-1">
+                          Sender Contact Info <span className="text-slate-400">(Optional)</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={senderContact}
+                          onChange={(e) => setSenderContact(e.target.value)}
+                          className={inputClass()}
+                          placeholder="e.g., jane@example.com / (555) 019-2834"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium text-slate-300 mb-1">
+                          Date <span className="text-slate-400">(Optional - defaults to today)</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={date}
+                          onChange={(e) => setDate(e.target.value)}
+                          className={inputClass()}
+                          placeholder="e.g., September 12, 2026"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium text-slate-300 mb-1">
+                          Subject / Matter <span className="text-slate-400">(Optional)</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={subject}
+                          onChange={(e) => setSubject(e.target.value)}
+                          className={inputClass()}
+                          placeholder="e.g., Overdue Payment for Services Rendered"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium text-slate-300 mb-1">
+                          Compliance Deadline <span className="text-slate-400">(Optional - default 15 days)</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={deadline}
+                          onChange={(e) => setDeadline(e.target.value)}
+                          className={inputClass()}
+                          placeholder="e.g., 14 days / 30 calendar days"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-slate-300 mb-1">
+                        Facts / Background <span className="text-slate-400">(Optional)</span>
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={facts}
+                        onChange={(e) => setFacts(e.target.value)}
+                        className={inputClass()}
+                        placeholder="e.g., On August 1st, services were delivered as per agreement. Multiple reminders sent went unanswered."
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium text-slate-300 mb-1">
+                          Sender Title / Capacity <span className="text-slate-400">(Optional)</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={senderTitle}
+                          onChange={(e) => setSenderTitle(e.target.value)}
+                          className={inputClass()}
+                          placeholder="e.g., Managing Member / Attorney-in-fact"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium text-slate-300 mb-1">
+                          Signature Name <span className="text-slate-400">(Optional - defaults to Sender Name)</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={signatureName}
+                          onChange={(e) => setSignatureName(e.target.value)}
+                          className={inputClass()}
+                          placeholder="e.g., Jane M. Doe"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* NDA FIELDS */}
+              {documentType === "nda" && (
+                <div className="space-y-4 pt-2">
+                  <div className="border-b border-slate-700/60 pb-2">
+                    <h2 className="text-sm font-semibold text-purple-300">
+                      Non-Disclosure Agreement Details
+                    </h2>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-slate-300 mb-1">
+                        Disclosing Party Name <span className="text-pink-400">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={disclosingPartyName}
+                        onChange={(e) => setDisclosingPartyName(e.target.value)}
+                        className={inputClass("disclosing_party_name")}
+                        placeholder="e.g., Acme Innovations Inc."
+                      />
+                      {fieldErrors.disclosing_party_name && (
+                        <p className="mt-1 text-xs text-red-400">
+                          {fieldErrors.disclosing_party_name}
+                        </p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-slate-300 mb-1">
+                        Receiving Party Name <span className="text-pink-400">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={receivingPartyName}
+                        onChange={(e) => setReceivingPartyName(e.target.value)}
+                        className={inputClass("receiving_party_name")}
+                        placeholder="e.g., Beta Software LLC"
+                      />
+                      {fieldErrors.receiving_party_name && (
+                        <p className="mt-1 text-xs text-red-400">
+                          {fieldErrors.receiving_party_name}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Optional NDA Fields */}
+                  <div className="border-t border-slate-700/60 pt-3 space-y-4">
+                    <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                      Optional Fields
+                    </span>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium text-slate-300 mb-1">
+                          Disclosing Party Address <span className="text-slate-400">(Optional)</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={disclosingPartyAddress}
+                          onChange={(e) => setDisclosingPartyAddress(e.target.value)}
+                          className={inputClass()}
+                          placeholder="e.g., 100 Tech Way, San Francisco, CA"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium text-slate-300 mb-1">
+                          Receiving Party Address <span className="text-slate-400">(Optional)</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={receivingPartyAddress}
+                          onChange={(e) => setReceivingPartyAddress(e.target.value)}
+                          className={inputClass()}
+                          placeholder="e.g., 500 Innovation Blvd, Seattle, WA"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-slate-300 mb-1">
+                        Purpose / Business Relationship <span className="text-slate-400">(Optional)</span>
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={purpose}
+                        onChange={(e) => setPurpose(e.target.value)}
+                        className={inputClass()}
+                        placeholder="e.g., Evaluating a potential strategic partnership or software integration."
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-slate-300 mb-1">
+                        Description of Confidential Info <span className="text-slate-400">(Optional)</span>
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={confidentialInfoDesc}
+                        onChange={(e) => setConfidentialInfoDesc(e.target.value)}
+                        className={inputClass()}
+                        placeholder="e.g., Proprietary source code, customer lists, algorithms, and financial projections."
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium text-slate-300 mb-1">
+                          Agreement Date <span className="text-slate-400">(Optional)</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={date}
+                          onChange={(e) => setDate(e.target.value)}
+                          className={inputClass()}
+                          placeholder="e.g., Today's date"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium text-slate-300 mb-1">
+                          Confidentiality Period <span className="text-slate-400">(Optional)</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={confidentialityPeriod}
+                          onChange={(e) => setConfidentialityPeriod(e.target.value)}
+                          className={inputClass()}
+                          placeholder="e.g., two (2) years"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium text-slate-300 mb-1">
+                          Governing Law <span className="text-slate-400">(Optional)</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={governingLaw}
+                          onChange={(e) => setGoverningLaw(e.target.value)}
+                          className={inputClass()}
+                          placeholder="e.g., State of Delaware"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* SERVICE AGREEMENT FIELDS */}
+              {documentType === "service_agreement" && (
+                <div className="space-y-4 pt-2">
+                  <div className="border-b border-slate-700/60 pb-2">
+                    <h2 className="text-sm font-semibold text-purple-300">
+                      Service Agreement Details
+                    </h2>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-slate-300 mb-1">
+                        Service Provider Name <span className="text-pink-400">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={serviceProviderName}
+                        onChange={(e) => setServiceProviderName(e.target.value)}
+                        className={inputClass("service_provider_name")}
+                        placeholder="e.g., Apex Web Services LLC"
+                      />
+                      {fieldErrors.service_provider_name && (
+                        <p className="mt-1 text-xs text-red-400">
+                          {fieldErrors.service_provider_name}
+                        </p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-slate-300 mb-1">
+                        Client Name <span className="text-pink-400">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={clientName}
+                        onChange={(e) => setClientName(e.target.value)}
+                        className={inputClass("client_name")}
+                        placeholder="e.g., Bright Retail Corp"
+                      />
+                      {fieldErrors.client_name && (
+                        <p className="mt-1 text-xs text-red-400">
+                          {fieldErrors.client_name}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-slate-300 mb-1">
+                      Services Description <span className="text-pink-400">*</span>
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={servicesDescription}
+                      onChange={(e) => setServicesDescription(e.target.value)}
+                      className={inputClass("services_description")}
+                      placeholder="e.g., Full stack web application development, cloud infrastructure setup, and technical documentation."
+                    />
+                    {fieldErrors.services_description && (
+                      <p className="mt-1 text-xs text-red-400">
+                        {fieldErrors.services_description}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Optional Service Agreement Fields */}
+                  <div className="border-t border-slate-700/60 pt-3 space-y-4">
+                    <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                      Optional Fields
+                    </span>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium text-slate-300 mb-1">
+                          Service Provider Address <span className="text-slate-400">(Optional)</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={serviceProviderAddress}
+                          onChange={(e) => setServiceProviderAddress(e.target.value)}
+                          className={inputClass()}
+                          placeholder="e.g., 789 Developer Rd, Austin, TX"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium text-slate-300 mb-1">
+                          Client Address <span className="text-slate-400">(Optional)</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={clientAddress}
+                          onChange={(e) => setClientAddress(e.target.value)}
+                          className={inputClass()}
+                          placeholder="e.g., 321 Commerce St, Chicago, IL"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium text-slate-300 mb-1">
+                          Payment / Fee Terms <span className="text-slate-400">(Optional)</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={paymentTerms}
+                          onChange={(e) => setPaymentTerms(e.target.value)}
+                          className={inputClass()}
+                          placeholder="e.g., $5,000 monthly retainer due on the 1st."
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium text-slate-300 mb-1">
+                          Start Date <span className="text-slate-400">(Optional - default today)</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={startDate}
+                          onChange={(e) => setStartDate(e.target.value)}
+                          className={inputClass()}
+                          placeholder="e.g., October 1, 2026"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium text-slate-300 mb-1">
+                          Agreement Duration <span className="text-slate-400">(Optional)</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={duration}
+                          onChange={(e) => setDuration(e.target.value)}
+                          className={inputClass()}
+                          placeholder="e.g., for a period of 6 months"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium text-slate-300 mb-1">
+                          Termination Notice <span className="text-slate-400">(Optional)</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={terminationNotice}
+                          onChange={(e) => setTerminationNotice(e.target.value)}
+                          className={inputClass()}
+                          placeholder="e.g., thirty (30) days"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium text-slate-300 mb-1">
+                          Governing Law <span className="text-slate-400">(Optional)</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={governingLaw}
+                          onChange={(e) => setGoverningLaw(e.target.value)}
+                          className={inputClass()}
+                          placeholder="e.g., State of California"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-slate-300 mb-1">
+                        Additional Terms <span className="text-slate-400">(Optional)</span>
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={additionalTerms}
+                        onChange={(e) => setAdditionalTerms(e.target.value)}
+                        className={inputClass()}
+                        placeholder="e.g., Weekly progress meetings required every Monday."
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {!documentType && (
+                <div className="p-4 bg-slate-800/40 border border-slate-700/60 rounded-xl text-center">
+                  <p className="text-xs text-slate-400">
+                    Please select a document type above to see the required and optional details for your document.
+                  </p>
+                </div>
+              )}
+
+              {/* Submit Button */}
               <button
                 id="generate-btn"
                 type="submit"
-                disabled={isGenerating}
-                className="w-full relative overflow-hidden bg-gradient-to-r from-purple-600 to-blue-600 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-300 hover:shadow-[0_0_20px_rgba(124,58,237,0.5)] hover:-translate-y-0.5 disabled:opacity-70 disabled:cursor-not-allowed disabled:translate-y-0"
+                disabled={isGenerating || !documentType}
+                className="w-full relative overflow-hidden bg-gradient-to-r from-purple-600 to-blue-600 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-300 hover:shadow-[0_0_20px_rgba(124,58,237,0.5)] hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:translate-y-0"
               >
                 {isGenerating ? (
                   <span className="flex items-center justify-center gap-2">
@@ -417,13 +985,12 @@ export default function Home() {
             </form>
           </div>
 
-          {/* ── Preview Panel (PL-5) ── */}
+          {/* ── Preview Panel ── */}
           {result && (
             <div
               id="preview-panel"
               className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl p-8 space-y-4"
             >
-              {/* Disclaimer inside preview (PL-7) */}
               <div className="p-3 bg-amber-900/30 border border-amber-700/40 rounded-xl">
                 <p className="text-amber-200 text-xs leading-5">
                   ⚠ <strong>Legal Disclaimer:</strong> {result.disclaimer}
@@ -437,7 +1004,6 @@ export default function Home() {
                 </span>
               </div>
 
-              {/* Document content */}
               <pre
                 id="document-preview"
                 className="text-slate-300 text-sm leading-6 whitespace-pre-wrap font-mono bg-slate-900/60 rounded-xl p-5 max-h-[500px] overflow-y-auto border border-slate-700"
@@ -445,9 +1011,7 @@ export default function Home() {
                 {result.content}
               </pre>
 
-              {/* Actions */}
               <div className="flex gap-3 pt-1">
-                {/* Download (PL-6) */}
                 <button
                   id="download-btn"
                   onClick={handleDownload}
@@ -497,7 +1061,6 @@ export default function Home() {
                   )}
                 </button>
 
-                {/* Start over */}
                 <button
                   id="start-over-btn"
                   onClick={handleReset}
@@ -509,7 +1072,6 @@ export default function Home() {
             </div>
           )}
 
-          {/* Footer */}
           <p className="text-center text-xs text-slate-600 pb-6">
             Pre-Legal Document Generator — for informational purposes only.
           </p>

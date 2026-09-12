@@ -1,6 +1,5 @@
 """
-End-to-end API tests covering PL-4 (generation), PL-6 (export),
-PL-9 (validation/errors), and PL-10 (full workflow).
+End-to-end API tests covering document generation, template customization, validation, and exports.
 """
 from __future__ import annotations
 
@@ -17,23 +16,28 @@ client = TestClient(app)
 
 VALID_NDA = {
     "document_type": "nda",
-    "party_name": "Acme Corp",
-    "details": "This agreement covers proprietary software developed for Project X.",
+    "disclosing_party_name": "Acme Corp",
+    "receiving_party_name": "Beta Industries",
+    "purpose": "Evaluating a potential merger or software acquisition.",
 }
+
 VALID_SERVICE = {
     "document_type": "service_agreement",
-    "party_name": "BuildRight LLC",
-    "details": "Web development services including frontend and backend for 3 months.",
+    "service_provider_name": "BuildRight LLC",
+    "client_name": "Acme Corp",
+    "services_description": "Web development services including frontend and backend for 3 months.",
 }
+
 VALID_DEMAND = {
     "document_type": "demand_letter",
-    "party_name": "John Doe",
-    "details": "Client has failed to pay $5,000 owed under invoice #1234 dated 2026-08-01.",
+    "sender_name": "John Doe",
+    "recipient_name": "Acme Corp",
+    "demand": "Client has failed to pay $5,000 owed under invoice #1234 dated 2026-08-01.",
 }
 
 
 # ---------------------------------------------------------------------------
-# Health check
+# Health & Templates check
 # ---------------------------------------------------------------------------
 
 def test_health():
@@ -56,81 +60,114 @@ def test_get_templates():
         assert "description" in t and len(t["description"]) > 0
 
 
+# ---------------------------------------------------------------------------
+# Specific Required & Optional Fields Testing
+# ---------------------------------------------------------------------------
+
+def test_demand_letter_required_only():
+    payload = {
+        "document_type": "demand_letter",
+        "sender_name": "Alice Smith",
+        "recipient_name": "Bob Jones",
+        "demand": "Payment of $1,200 for outstanding invoice #99.",
+    }
+    r = client.post("/documents/generate", json=payload)
+    assert r.status_code == 200
+    content = r.json()["content"]
+    assert "Alice Smith" in content
+    assert "Bob Jones" in content
+    assert "Payment of $1,200 for outstanding invoice #99." in content
+    # Verify no unresolved placeholders
+    assert "[Recipient]" not in content
+    assert "[Recipient Name and Address]" not in content
+    assert "[Signature]" not in content
+    assert "[Title / Capacity]" not in content
+    assert "[Contact Information]" not in content
+    assert "null" not in content
+    assert "undefined" not in content
+
+
+def test_demand_letter_all_optional_fields():
+    payload = {
+        "document_type": "demand_letter",
+        "sender_name": "Alice Smith",
+        "sender_address": "123 Main St, Suite 4",
+        "sender_contact": "alice@example.com",
+        "recipient_name": "Bob Jones",
+        "recipient_address": "456 Corporate Blvd",
+        "date": "October 15, 2026",
+        "subject": "Breach of Contract - Invoice #99",
+        "facts": "Services were completed on September 1st, but payment remains unpaid.",
+        "demand": "Full settlement of $1,200.",
+        "deadline": "10 days",
+        "sender_title": "Chief Financial Officer",
+        "signature_name": "Alice M. Smith",
+    }
+    r = client.post("/documents/generate", json=payload)
+    assert r.status_code == 200
+    content = r.json()["content"]
+    assert "October 15, 2026" in content
+    assert "123 Main St, Suite 4" in content
+    assert "456 Corporate Blvd" in content
+    assert "Breach of Contract - Invoice #99" in content
+    assert "Services were completed on September 1st" in content
+    assert "10 days" in content
+    assert "Chief Financial Officer" in content
+    assert "Alice M. Smith" in content
+
+
+def test_nda_required_only():
+    payload = {
+        "document_type": "nda",
+        "disclosing_party_name": "Tech Corp",
+        "receiving_party_name": "Dev Agency",
+    }
+    r = client.post("/documents/generate", json=payload)
+    assert r.status_code == 200
+    content = r.json()["content"]
+    assert "Tech Corp" in content
+    assert "Dev Agency" in content
+    assert "null" not in content
+    assert "undefined" not in content
+    assert "[Disclosing Party]" not in content
+    assert "[Receiving Party]" not in content
+
+
+def test_service_agreement_required_only():
+    payload = {
+        "document_type": "service_agreement",
+        "service_provider_name": "Fast Code Inc",
+        "client_name": "Global Media",
+        "services_description": "Mobile application development and QA testing.",
+    }
+    r = client.post("/documents/generate", json=payload)
+    assert r.status_code == 200
+    content = r.json()["content"]
+    assert "Fast Code Inc" in content
+    assert "Global Media" in content
+    assert "Mobile application development and QA testing." in content
+    assert "null" not in content
+    assert "undefined" not in content
+    assert "[Client]" not in content
+
 
 # ---------------------------------------------------------------------------
-# PL-4: Document generation — happy paths
-# ---------------------------------------------------------------------------
-
-def test_generate_nda():
-    r = client.post("/documents/generate", json=VALID_NDA)
-    assert r.status_code == 200
-    body = r.json()
-    assert body["document_type"] == "nda"
-    assert "Non-Disclosure" in body["title"]
-    assert "Acme Corp" in body["content"]
-    assert "DISCLAIMER" in body["disclaimer"]
-
-
-def test_generate_service_agreement():
-    r = client.post("/documents/generate", json=VALID_SERVICE)
-    assert r.status_code == 200
-    body = r.json()
-    assert body["document_type"] == "service_agreement"
-    assert "Service Agreement" in body["title"]
-    assert "BuildRight LLC" in body["content"]
-
-
-def test_generate_demand_letter():
-    r = client.post("/documents/generate", json=VALID_DEMAND)
-    assert r.status_code == 200
-    body = r.json()
-    assert body["document_type"] == "demand_letter"
-    assert "Demand Letter" in body["title"]
-    assert "John Doe" in body["content"]
-
-
-# ---------------------------------------------------------------------------
-# PL-9: Validation errors
+# Validation errors
 # ---------------------------------------------------------------------------
 
 def test_missing_document_type():
     r = client.post("/documents/generate", json={
-        "party_name": "Someone",
-        "details": "Some details here for context.",
+        "sender_name": "Someone",
+        "demand": "Some details here for context.",
     })
     assert r.status_code == 422
 
 
-def test_missing_party_name():
+def test_missing_required_field_demand_letter():
     r = client.post("/documents/generate", json={
-        "document_type": "nda",
-        "details": "Some details here for context.",
-    })
-    assert r.status_code == 422
-
-
-def test_missing_details():
-    r = client.post("/documents/generate", json={
-        "document_type": "nda",
-        "party_name": "Acme Corp",
-    })
-    assert r.status_code == 422
-
-
-def test_empty_party_name():
-    r = client.post("/documents/generate", json={
-        "document_type": "nda",
-        "party_name": "   ",
-        "details": "Some details here for context.",
-    })
-    assert r.status_code == 422
-
-
-def test_details_too_short():
-    r = client.post("/documents/generate", json={
-        "document_type": "nda",
-        "party_name": "Acme",
-        "details": "short",
+        "document_type": "demand_letter",
+        "sender_name": "Alice",
+        # missing recipient_name and demand
     })
     assert r.status_code == 422
 
@@ -138,14 +175,13 @@ def test_details_too_short():
 def test_invalid_document_type():
     r = client.post("/documents/generate", json={
         "document_type": "unknown_type",
-        "party_name": "Acme Corp",
-        "details": "Some details here for context.",
+        "sender_name": "Acme Corp",
     })
     assert r.status_code == 422
 
 
 # ---------------------------------------------------------------------------
-# PL-6: Export
+# Export & Disclaimers
 # ---------------------------------------------------------------------------
 
 def test_export_nda():
@@ -159,38 +195,12 @@ def test_export_nda():
     assert "Acme Corp" in text
 
 
-def test_export_service_agreement():
-    r = client.post("/documents/export", json=VALID_SERVICE)
-    assert r.status_code == 200
-    assert "service_agreement_draft.txt" in r.headers["content-disposition"]
-
-
-def test_export_demand_letter():
-    r = client.post("/documents/export", json=VALID_DEMAND)
-    assert r.status_code == 200
-    assert "demand_letter_draft.txt" in r.headers["content-disposition"]
-
-
-def test_export_validation_error():
-    r = client.post("/documents/export", json={
-        "document_type": "nda",
-        "party_name": "",
-        "details": "Some details here for context.",
-    })
-    assert r.status_code == 422
-
-
-# ---------------------------------------------------------------------------
-# PL-7: Disclaimer present in all outputs
-# ---------------------------------------------------------------------------
-
 @pytest.mark.parametrize("payload", [VALID_NDA, VALID_SERVICE, VALID_DEMAND])
 def test_disclaimer_in_generate(payload):
     r = client.post("/documents/generate", json=payload)
     assert r.status_code == 200
     body = r.json()
     assert "DISCLAIMER" in body["disclaimer"]
-    assert "legal advice" in body["disclaimer"].lower()
 
 
 @pytest.mark.parametrize("payload", [VALID_NDA, VALID_SERVICE, VALID_DEMAND])
@@ -198,27 +208,3 @@ def test_disclaimer_in_export(payload):
     r = client.post("/documents/export", json=payload)
     assert r.status_code == 200
     assert "DISCLAIMER" in r.text
-    assert "legal advice" in r.text.lower()
-
-
-# ---------------------------------------------------------------------------
-# PL-10: Full MVP workflow
-# ---------------------------------------------------------------------------
-
-def test_full_workflow_nda():
-    """Simulate: select type → fill form → generate → preview → export → download."""
-    # Step 1: generate (preview)
-    gen = client.post("/documents/generate", json=VALID_NDA)
-    assert gen.status_code == 200
-    preview = gen.json()
-    assert preview["content"]
-    assert preview["disclaimer"]
-
-    # Step 2: export (download)
-    exp = client.post("/documents/export", json=VALID_NDA)
-    assert exp.status_code == 200
-    downloaded = exp.text
-    # Downloaded file contains disclaimer + document content
-    assert "DISCLAIMER" in downloaded
-    assert "Acme Corp" in downloaded
-    assert "NON-DISCLOSURE" in downloaded

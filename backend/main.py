@@ -15,6 +15,7 @@ app = FastAPI(
 origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "https://pre-legal.vercel.app",
 ]
 
 frontend_url = os.getenv("FRONTEND_URL")

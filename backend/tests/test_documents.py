@@ -60,6 +60,29 @@ def test_get_templates():
         assert "description" in t and len(t["description"]) > 0
 
 
+def test_cors_headers_production_origin():
+    response = client.get(
+        "/documents/templates",
+        headers={"Origin": "https://pre-legal.vercel.app"}
+    )
+    assert response.status_code == 200
+    assert response.headers.get("access-control-allow-origin") == "https://pre-legal.vercel.app"
+
+
+def test_cors_preflight_production_origin():
+    response = client.options(
+        "/documents/generate",
+        headers={
+            "Origin": "https://pre-legal.vercel.app",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "content-type",
+        }
+    )
+    assert response.status_code == 200
+    assert response.headers.get("access-control-allow-origin") == "https://pre-legal.vercel.app"
+    assert "POST" in response.headers.get("access-control-allow-methods", "")
+
+
 # ---------------------------------------------------------------------------
 # Specific Required & Optional Fields Testing
 # ---------------------------------------------------------------------------

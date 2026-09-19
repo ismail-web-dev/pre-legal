@@ -93,6 +93,8 @@ export default function Home() {
   const [isExporting, setIsExporting] = useState(false);
   const [apiError, setApiError] = useState("");
   const [result, setResult] = useState<GenerateResponse | null>(null);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [showText, setShowText] = useState(false);
 
   useEffect(() => {
     fetch(`${API_BASE}/documents/templates`)
@@ -186,11 +188,19 @@ export default function Home() {
     if (Object.keys(errors).length > 0) return;
 
     setIsGenerating(true);
+    if (pdfUrl) {
+      URL.revokeObjectURL(pdfUrl);
+      setPdfUrl(null);
+    }
+
     try {
+      const payload = buildPayload();
+
+      // 1. Fetch JSON text result & metadata
       const res = await fetch(`${API_BASE}/documents/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(buildPayload()),
+        body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
@@ -205,6 +215,21 @@ export default function Home() {
 
       const data: GenerateResponse = await res.json();
       setResult(data);
+
+      // 2. Fetch generated PDF blob
+      const pdfRes = await fetch(`${API_BASE}/documents/generate-pdf`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (pdfRes.ok) {
+        const pdfBlob = await pdfRes.blob();
+        const url = URL.createObjectURL(pdfBlob);
+        setPdfUrl(url);
+      } else {
+        setApiError("Document text generated, but PDF creation failed.");
+      }
     } catch {
       setApiError(
         "Could not reach the server. Make sure the backend is running."
@@ -214,12 +239,31 @@ export default function Home() {
     }
   };
 
-  const handleDownload = async () => {
+  const handleDownloadPdf = () => {
+    if (!pdfUrl && !result) return;
+    if (pdfUrl) {
+      const a = document.createElement("a");
+      a.href = pdfUrl;
+      a.download = `${documentType || "legal-document"}_draft.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      return;
+    }
+    // Fallback: request PDF download via export endpoint
+    handleDownloadFormat("pdf");
+  };
+
+  const handleDownloadTxt = () => {
+    handleDownloadFormat("txt");
+  };
+
+  const handleDownloadFormat = async (format: "txt" | "pdf") => {
     if (!result) return;
     setIsExporting(true);
     setApiError("");
     try {
-      const res = await fetch(`${API_BASE}/documents/export`, {
+      const res = await fetch(`${API_BASE}/documents/export?format=${format}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(buildPayload()),
@@ -234,7 +278,7 @@ export default function Home() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${documentType}_draft.txt`;
+      a.download = `${documentType || "legal-document"}_draft.${format}`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -247,7 +291,12 @@ export default function Home() {
   };
 
   const handleReset = () => {
+    if (pdfUrl) {
+      URL.revokeObjectURL(pdfUrl);
+      setPdfUrl(null);
+    }
     setResult(null);
+    setShowText(false);
     setApiError("");
     setFieldErrors({});
     setDocumentType("");
@@ -989,7 +1038,7 @@ export default function Home() {
           {result && (
             <div
               id="preview-panel"
-              className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl p-8 space-y-4"
+              className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl p-6 sm:p-8 space-y-5"
             >
               <div className="p-3 bg-amber-900/30 border border-amber-700/40 rounded-xl">
                 <p className="text-amber-200 text-xs leading-5">
@@ -999,78 +1048,128 @@ export default function Home() {
 
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-bold text-white">{result.title}</h2>
-                <span className="text-xs text-slate-400 bg-slate-700/50 px-2 py-1 rounded-md">
-                  Draft
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-emerald-400 bg-emerald-950/60 border border-emerald-700/50 px-2.5 py-1 rounded-full">
+                    PDF Draft
+                  </span>
+                </div>
               </div>
 
-              <pre
-                id="document-preview"
-                className="text-slate-300 text-sm leading-6 whitespace-pre-wrap font-mono bg-slate-900/60 rounded-xl p-5 max-h-[500px] overflow-y-auto border border-slate-700"
-              >
-                {result.content}
-              </pre>
-
-              <div className="flex gap-3 pt-1">
-                <button
-                  id="download-btn"
-                  onClick={handleDownload}
-                  disabled={isExporting}
-                  className="flex-1 flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-70 disabled:cursor-not-allowed text-white font-semibold py-3 px-5 rounded-xl transition-colors duration-200"
-                >
-                  {isExporting ? (
-                    <>
-                      <svg
-                        className="animate-spin h-4 w-4"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                      >
-                        <circle
-                          className="opacity-25"
-                          cx="12"
-                          cy="12"
-                          r="10"
-                          stroke="currentColor"
-                          strokeWidth="4"
-                        />
-                        <path
-                          className="opacity-75"
-                          fill="currentColor"
-                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                        />
-                      </svg>
-                      Downloading…
-                    </>
-                  ) : (
-                    <>
-                      <svg
-                        className="h-4 w-4"
-                        fill="none"
+              {/* PDF Preview Area */}
+              <div className="w-full bg-slate-900 border border-slate-700 rounded-xl overflow-hidden shadow-inner">
+                {pdfUrl ? (
+                  <iframe
+                    id="pdf-preview-frame"
+                    src={pdfUrl}
+                    title="Legal Document PDF Preview"
+                    className="w-full h-[600px] border-0 rounded-xl"
+                  />
+                ) : (
+                  <div className="p-12 text-center text-slate-400 space-y-3">
+                    <svg
+                      className="animate-spin h-8 w-8 mx-auto text-purple-400"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
                         stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-                        />
-                      </svg>
-                      Download (.txt)
-                    </>
-                  )}
+                        strokeWidth="4"
+                      />
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                      />
+                    </svg>
+                    <p className="text-sm font-medium">Rendering PDF Document Preview…</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                <button
+                  id="download-pdf-btn"
+                  onClick={handleDownloadPdf}
+                  disabled={!pdfUrl}
+                  className="flex-1 flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-3 px-5 rounded-xl transition-colors duration-200 shadow-lg shadow-emerald-950/50"
+                >
+                  <svg
+                    className="h-5 w-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                    />
+                  </svg>
+                  Download PDF
+                </button>
+
+                <button
+                  id="toggle-text-btn"
+                  onClick={() => setShowText(!showText)}
+                  className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-slate-600 text-slate-300 hover:bg-slate-800 transition-colors duration-200 text-sm font-medium"
+                >
+                  <svg
+                    className="h-4 w-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                    />
+                  </svg>
+                  {showText ? "Hide Text" : "View Text"}
                 </button>
 
                 <button
                   id="start-over-btn"
                   onClick={handleReset}
-                  className="px-5 py-3 rounded-xl border border-slate-600 text-slate-300 hover:bg-slate-700/50 transition-colors duration-200 text-sm font-medium"
+                  className="px-4 py-3 rounded-xl border border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors duration-200 text-sm font-medium"
                 >
                   Start Over
                 </button>
               </div>
+
+              {/* Text View Accordion (Secondary Option) */}
+              {showText && (
+                <div className="pt-3 border-t border-slate-800 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                      Generated Plain Text Content
+                    </span>
+                    <button
+                      onClick={handleDownloadTxt}
+                      disabled={isExporting}
+                      className="text-xs text-purple-400 hover:text-purple-300 font-medium underline"
+                    >
+                      {isExporting ? "Downloading..." : "Download (.txt)"}
+                    </button>
+                  </div>
+                  <pre
+                    id="document-text-preview"
+                    className="text-slate-300 text-xs leading-5 whitespace-pre-wrap font-mono bg-slate-900/80 rounded-xl p-4 max-h-[300px] overflow-y-auto border border-slate-800"
+                  >
+                    {result.content}
+                  </pre>
+                </div>
+              )}
             </div>
           )}
+
 
           <p className="text-center text-xs text-slate-600 pb-6">
             Pre-Legal Document Generator — for informational purposes only.

@@ -231,3 +231,26 @@ def test_disclaimer_in_export(payload):
     r = client.post("/documents/export", json=payload)
     assert r.status_code == 200
     assert "DISCLAIMER" in r.text
+
+
+# ---------------------------------------------------------------------------
+# PDF Generation & PDF Export
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("payload", [VALID_NDA, VALID_SERVICE, VALID_DEMAND])
+def test_generate_pdf_endpoint(payload):
+    r = client.post("/documents/generate-pdf", json=payload)
+    assert r.status_code == 200
+    assert "application/pdf" in r.headers["content-type"]
+    assert "inline" in r.headers["content-disposition"]
+    assert r.content.startswith(b"%PDF")
+
+
+def test_export_pdf_format():
+    r = client.post("/documents/export?format=pdf", json=VALID_NDA)
+    assert r.status_code == 200
+    assert "application/pdf" in r.headers["content-type"]
+    assert "attachment" in r.headers["content-disposition"]
+    assert "nda_draft.pdf" in r.headers["content-disposition"]
+    assert r.content.startswith(b"%PDF")
+
